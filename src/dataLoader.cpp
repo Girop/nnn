@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+#include <algorithm>
+#include <random>
 
 
 DataLoader::DataLoader(std::string const& data_dir) {
@@ -15,7 +17,8 @@ DataLoader::DataLoader(std::string const& data_dir) {
             return;
         }
 
-        for (auto const& entry: directory_iterator{data_dir}) {
+        for (auto const& entry: directory_iterator(data_dir)) {
+            if (entry.is_directory()) continue;
             csv_filepaths_.push_back(entry.path());
         }
 
@@ -24,29 +27,35 @@ DataLoader::DataLoader(std::string const& data_dir) {
     }
 }
 
-void DataLoader::load_all(unsigned int batch_size) {
+void DataLoader::load(unsigned int batch_size, std::vector<std::string> const& names) {
+    bool name_filer_active = names.size() > 0;
     for (auto const& path: csv_filepaths_) {
-        auto file = std::fstream{path};
+        auto file = std::fstream(path);
         if (!file.is_open()) {
             std::cout << "Failed opening file: "  << path << '\n';
             continue;
         }
+        std::cout << "Loading: " << path << '\n';
         unsigned int line_count = 0;
         std::string line;
+        auto should_load = [&](std::string const& entry_name){
+            return std::find(names.begin(), names.end(), entry_name) != names.end();
+        };
+
         while (std::getline(file, line)) {
-            if (++line_count == 1) continue;
+            if (line_count++ == 0) continue;
+            auto entry = parse_csv_line(line);
+            if (name_filer_active && !should_load(entry.name)) break;
+            loaded_data_.push_back(entry);
             if (line_count > batch_size) break;
-            loaded_data_.push_back(parse_csv_line(line));
         }
     } 
 }
 
-static constexpr char delimiter = ',';
-
-DataLoader::Record DataLoader::parse_csv_line(std::string const& line) {
+Record DataLoader::parse_csv_line(std::string const& line) {
+    static constexpr char delimiter = ',';
     Record result;
-
-    auto token_stream = std::istringstream{line};
+    auto token_stream = std::istringstream(line);
     std::string token;
     unsigned int token_counter = 0;
     while (std::getline(token_stream, token, delimiter)) {
@@ -60,10 +69,27 @@ DataLoader::Record DataLoader::parse_csv_line(std::string const& line) {
     return result;
 }
 
-DataLoader::Data const& DataLoader::get_data() const {
+Dataset const& DataLoader::get_data() const {
     return loaded_data_;
+}
+
+Dataset DataLoader::get_shuffled_data() const {
+    auto data = loaded_data_;
+    std::random_device rd;
+    auto g = std::mt19937(rd());
+    std::shuffle(data.begin(), data.end(), g);
+    return data;
 }
 
 std::set<std::string> DataLoader::get_names() const{
     return loaded_names_;
+}
+
+
+std::pair<Dataset, Dataset> split_dataset(Dataset const& data, float split_ratio) {
+    auto split_point = data.begin() + data.size() * split_ratio;
+    return {
+        {data.begin(), split_point},
+        {split_point, data.end()}
+    };
 }
