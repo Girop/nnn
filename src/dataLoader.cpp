@@ -3,8 +3,6 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
-#include <algorithm>
-#include <random>
 
 
 DataLoader::DataLoader(std::string const& data_dir) {
@@ -73,13 +71,6 @@ Dataset const& DataLoader::get_data() const {
     return loaded_data_;
 }
 
-Dataset DataLoader::get_shuffled_data() const {
-    auto data = loaded_data_;
-    std::random_device rd;
-    auto g = std::mt19937(rd());
-    std::shuffle(data.begin(), data.end(), g);
-    return data;
-}
 
 std::set<std::string> DataLoader::get_names() const{
     return loaded_names_;

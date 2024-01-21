@@ -2,6 +2,8 @@
 #include <vector>
 #include <string>
 #include <set>
+#include <random>
+#include <algorithm>
 
 struct Record {
     std::string name;
@@ -17,7 +19,14 @@ public:
     DataLoader(std::string const& data_dir);
     void load(unsigned int batch_size = 1000, std::vector<std::string> const& names = {});
     Dataset const& get_data() const;
-    Dataset get_shuffled_data() const;
+
+    static Dataset shuffle_data(Dataset const& orignal) {
+        auto data = orignal;
+        std::random_device rd;
+        auto g = std::mt19937(rd());
+        std::shuffle(data.begin(), data.end(), g);
+        return data;
+    }
     std::set<std::string> get_names() const;
 
 private:

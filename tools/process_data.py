@@ -9,7 +9,7 @@ OUTPUT_DIR = Path("data")
 
 def remove(location: Path):
     for subloc in location.iterdir():
-        if subloc.is_dir() and subloc.name == "images":  # I am weak enough to fear "rm -rf"
+        if subloc.is_dir() and subloc.name == "images":
             remove(subloc)
         else:
             subloc.unlink()
@@ -128,6 +128,6 @@ if __name__ == '__main__':
     print("Startig")
     print(f"Cleaning: {str(OUTPUT_DIR)}")
     remove(OUTPUT_DIR)
-    category_size = 10_000
+    category_size = 5000
     print("Starting preprocessing")
     preprocess_all(category_size)

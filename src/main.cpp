@@ -1,38 +1,27 @@
 #include "dataLoader.hpp"
 #include "nn.hpp"
+#include "utils.hpp"
 #include <iostream>
 
-
-enum class RunMode {
-    Learn,
-    Load,
+GlobalConfig global_config {
+    200,
+    200,
+    {"bee", "carrot", "key"},
+    1.0f,
+    RunMode::Learn,
+    "result"
 };
-
-constexpr unsigned int L_learn_iterations = 100;
-constexpr float learn_rate = 1.0f / 200.0f;
-constexpr unsigned int category_image_count = 100;
-std::vector<std::string> filters = {"apple", "fish"};
-std::string weight_save_path = "weights/weights.txt";
-
-auto mode = RunMode::Learn;
-std::string weight_load_path = "weights/weights.txt";
-
-// TODO 
-// Get correct parameters
-//
-// Running experiments
-// Fix report
-// Experiments report
-
 
 void learn_nn() {
     auto loader = DataLoader("data");
     std::cout << "Loading dataset...\n";
-    loader.load(category_image_count, filters);
-    auto const& data = loader.get_shuffled_data();
+    loader.load(global_config.image_count_per_category, global_config.categories);
+    auto data = loader.get_data();
+    auto [training, test_datset] = split_dataset(data, 0.7f);
+    training = DataLoader::shuffle_data(training);
+
     std::cout << "Loaded " <<  data.size() << " images\n";
     auto categories = loader.get_names(); 
-    auto [training, validation] = split_dataset(data, 0.7f);
 
     auto config = NeuralNet::Config {
         categories,
@@ -45,41 +34,38 @@ void learn_nn() {
         {ReLu_derivative, ReLu_derivative, sigm_derivative},
         MSE,
     };
+
     std::cout << "Creating network\n";
     auto net = NeuralNet(config);
-    float start_loss = net.calculate_total_cost(validation);
+    float start_loss = net.calculate_total_cost(test_datset);
 
     std::cout << "Learning...\n";
-    net.learn(training, L_learn_iterations, learn_rate);
+    net.learn(training, global_config.L_learn_iterations, global_config.learn_rate);
     std::cout << "\nFinished learning\n";
-    float end_loss = net.calculate_total_cost(validation);
+    float end_loss = net.calculate_total_cost(test_datset);
+
     std::cout 
-        << "Loss before learning: " << start_loss 
-        << "\nLoss after learning: " << end_loss 
+        << "Cost before learning: " << start_loss 
+        << "\nCost after learning: " << end_loss 
         << std::endl;
-    net.dump_weights(weight_save_path);
-    std::cout << "Weights saved\n";
-    net.dump_predictions(validation, {1,2,3,4,5});
-    std::cout << "Predictions saved\n";
+
+    net.dump_statistics(global_config.result_dirname, test_datset);
 }
 
 void load_nn() {
-    auto config = FileConfig::from_file(weight_load_path);
-    auto nn = NeuralNet(config);
+    auto nn_config = FileConfig::from_file("result/weights.txt");
+    auto nn = NeuralNet(nn_config);
 
     auto loader = DataLoader("data");
-    loader.load(category_image_count, filters);
-    auto const& data = loader.get_shuffled_data();
+    loader.load(global_config.image_count_per_category, global_config.categories);
+    auto const& data = loader.get_data();
+    auto [training, test_datset] = split_dataset(data, 0.7f);
+    training = DataLoader::shuffle_data(training);
     std::cout << "Loaded " <<  data.size() << " images\n";
-    auto [training, validation] = split_dataset(data, 0.7f);
-
-    auto pred = nn.forward_pass(training[0].image);
-    auto cost = nn.calculate_total_cost(validation);
-    std::cout << "Total cost: " << cost << '\n';
 }
 
-int main() {
-    switch (mode) {
+int main() { 
+    switch (global_config.mode) {
         case RunMode::Learn:
             learn_nn();
             break;

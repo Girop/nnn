@@ -4,6 +4,7 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <filesystem>
 
 Layer::Layer(
     std::size_t in_size,
@@ -112,7 +113,7 @@ void Layer::calculate_second_layer_grad(
     for (unsigned int j = 0; j < 128; j++) {
         float next_layer_sum = 0.0f;
         for (unsigned int n = 0; n < 5; n++) {
-            next_layer_sum += out_weights[n][j] * sigm_derivative(out_wsum[n]) * out_grad[n]; // This needs rework
+            next_layer_sum += out_weights[n][j] * sigm_derivative(out_wsum[n]) * out_grad[n];
         }
 
         for (unsigned int i = 0; i < 256; i++) {
@@ -224,7 +225,8 @@ void NeuralNet::learn(Dataset const& dataset, std::size_t L, float learning_rate
         std::size_t record_index = L % dataset.size();
         update_weigths(learning_rate, dataset[record_index]);
         reset_gradients();
-    }    
+        iteration_loss_.push_back(calculate_cost(dataset[record_index]));
+    } 
 }
 
 float NeuralNet::calculate_cost(Record const& record) const {
@@ -278,9 +280,9 @@ void NeuralNet::reset_gradients() {
     }
 }
 
-float NeuralNet::calculate_total_cost(Dataset const& validation) const {
+float NeuralNet::calculate_total_cost(Dataset const& test) const {
     float result = 0.0f;
-    for (auto& record: validation) {
+    for (auto& record: test) {
         result += calculate_cost(record);
     }
     return result;
@@ -307,22 +309,21 @@ void NeuralNet::dump_weights(std::string const& pathname) const {
         output << '\n';
     }
 
-
     auto output_file = std::ofstream(pathname, std::ios::out | std::ios::trunc);
     if (!output_file.is_open()) {
         std::cerr << "Weight dump failed!\n";
         exit(1);
     }
     output_file << output.str();
+    std::cout << "Weights saved\n";
 }
 
-void NeuralNet::dump_predictions(Dataset const& datset, std::vector<std::size_t> const& indices) const {   
-    static std::string const dump_dir = "predictions/";
+void NeuralNet::dump_predictions(std::string const& dumpdir,std::string const& parentdir, Dataset const& datset) const {   
     std::vector<std::string> descriptions;
 
-    for (auto index: indices) {
+    for (std::size_t index = 0; index < datset.size(); index++) {
         auto image = datset[index].image;
-        auto path = dump_dir + "image" + std::to_string(index) + ".ppm";
+        auto path = dumpdir + std::to_string(index) + ".ppm";
         auto img = unflatten_image<256>(image);
         save_to_ppm(path, img);
 
@@ -339,30 +340,58 @@ void NeuralNet::dump_predictions(Dataset const& datset, std::vector<std::size_t>
         description_string += "\n" + desc + "\n";
     }
 
-    auto description_file = std::ofstream(dump_dir + "predictions.txt");
+    auto description_file = std::ofstream(parentdir + "predictions.txt", std::ios::out | std::ios::trunc);
     if (!description_file.is_open()) {
         std::cerr << "Failed to save predictions description file" << std::endl;
         exit(1);
     }
     description_file << description_string;
+    std::cout << "Predictions saved\n";
 }
 
-namespace {
-    std::vector<float> parse_line_values(std::string const& line) {
-        auto colon_pos = line.find(':');
-        std::vector<float> result;
-        if (colon_pos != std::string::npos) {
-            auto iss = std::istringstream(line.substr(colon_pos + 1));
-            float value;
-            while (iss >> value) {
-                result.push_back(value);
-            }
-        } else {
-            std::cerr << "Invalid line\n";
-            exit(1);
-        }
-        return result;
+void NeuralNet::dump_iterations(std::string const& dumppath, Dataset const& dataset) const {
+    auto file = std::ofstream(dumppath, std::ios::out | std::ios::trunc);
+    if (!file.is_open()) {
+        std::cerr << "Coulnd save iteration info!\n";
+        exit(1);
     }
+    
+    file << "Iteration count: " << iteration_loss_.size() << '\n'
+    << "Total cost: " << calculate_total_cost(dataset) << '\n';
+
+    for (std::size_t i = 0; i < iteration_loss_.size(); i++) {
+        file << iteration_loss_[i] << ' ';
+    }
+}
+
+void NeuralNet::dump_statistics(std::string const& dumpdir, Dataset const& dataset) const {
+    auto images_dir = dumpdir + "/images/";
+    try {
+        std::filesystem::create_directory(dumpdir);
+        std::filesystem::create_directory(images_dir);
+    } catch (const std::exception& e) {
+        std::cerr << "Error creating directory: " << e.what() << std::endl;
+    }
+
+    dump_weights(dumpdir + "/weights.txt");
+    dump_iterations(dumpdir + "/iterations.txt", dataset);
+    dump_predictions(images_dir, dumpdir, dataset);
+}
+
+
+static std::vector<float> parse_line_values(std::string const& line) {
+    auto colon_pos = line.find(':');
+    std::vector<float> result;
+    if (colon_pos != std::string::npos) {
+        auto iss = std::istringstream(line.substr(colon_pos + 1));
+        float value;
+        while (iss >> value) 
+            result.push_back(value);
+    } else {
+        std::cerr << "Invalid line\n";
+        exit(1);
+    }
+    return result;
 }
 
 using DoubleVec = std::vector<std::vector<float>>;

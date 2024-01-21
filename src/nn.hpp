@@ -144,9 +144,9 @@ public:
     
     std::vector<float> forward_pass(std::vector<float> const& image) const;
     void learn(Dataset const& dataset, std::size_t L, float learning_rate);
-    void dump_weights(std::string const& pathname) const;
-    float calculate_total_cost(Dataset const& validation) const;
-    void dump_predictions(Dataset const& datset, std::vector<std::size_t> const& indices) const;
+    float calculate_total_cost(Dataset const& test) const;
+
+    void dump_statistics(std::string const& dumpdir, Dataset const& datset) const;
 
     std::string get_result_name(std::size_t index) const;
     std::size_t get_result_index(std::string const& name) const;
@@ -155,6 +155,7 @@ private:
     LossFunction loss_function_;
     std::vector<Layer> layers_;
     std::map<std::string, std::size_t> name_to_index_;
+    std::vector<float> iteration_loss_;
 
     float calculate_cost(Record const& record) const;
     void calculate_gradients();
@@ -164,4 +165,8 @@ private:
         std::vector<float> const& predictions,
         std::string const& record_name
     ) const;
+
+    void dump_weights(std::string const& pathname) const;
+    void dump_predictions(std::string const& dumpdir,std::string const& parentdir, Dataset const& datset) const;
+    void dump_iterations(std::string const& dumppath, Dataset const& datset) const;
 };

@@ -1,5 +1,4 @@
 raw_data/
 data/
 build/
-weights/
-predictions/
+result/

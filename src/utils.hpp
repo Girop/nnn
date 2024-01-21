@@ -54,3 +54,17 @@ inline std::vector<std::vector<T>> unflatten_image(std::vector<T> image) {
     result.push_back(last_subvec);
     return result;
 }
+
+enum class RunMode {
+    Learn,
+    Load,
+};
+
+struct GlobalConfig {
+    std::size_t L_learn_iterations;
+    std::size_t image_count_per_category;
+    std::vector<std::string> categories;   
+    float learn_rate;
+    RunMode mode;
+    std::string result_dirname;
+};
